@@ -19,8 +19,11 @@
  */
 package com.spotify.apollo.route;
 
+import com.spotify.apollo.Response;
 import com.spotify.apollo.dispatch.Endpoint;
 
+import java.util.stream.Stream;
+import okio.ByteString;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,17 +44,28 @@ public final class Routers {
     return RuleRouter.of(rules(objects));
   }
 
+  private static Stream<Rule<Endpoint>> toRules(Route<? extends AsyncHandler<Response<ByteString>>> route) {
+    if ("GET".equals(route.method())) {
+      final Route<? extends AsyncHandler<Response<ByteString>>>
+          headRoute =
+          route.copy("HEAD", route.uri(), route.handler(), route.docString().orElse(null));
+      return Stream.of(route, headRoute).map(RouteRuleBuilder::toRule);
+    } else {
+      return Stream.of(route).map(RouteRuleBuilder::toRule);
+    }
+  }
+
   private static List<Rule<Endpoint>> rules(Object... objects) {
     final List<Rule<Endpoint>> rules = new ArrayList<>();
 
     for (Object object : objects) {
       if (object instanceof Route) {
         //noinspection unchecked
-        rules.add(RouteRuleBuilder.toRule((Route) object));
+        ((Stream<Rule<Endpoint>>) toRules((Route) object)).forEachOrdered(rules::add);
       } else if (object instanceof RouteProvider) {
         ((RouteProvider) object).routes()
             .map(route -> route.withMiddleware(apolloDefaults()))
-            .map(RouteRuleBuilder::toRule)
+            .flatMap(Routers::toRules)
             .forEachOrdered(rules::add);
       } else {
         throw new IllegalArgumentException("Unknown route/rule instance detected " + object);

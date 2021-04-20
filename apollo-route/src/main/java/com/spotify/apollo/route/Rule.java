@@ -86,9 +86,6 @@ public class Rule<T> {
   private static ImmutableList<String> processMethods(List<String> methods) {
     ImmutableList.Builder<String> builder = ImmutableList.<String>builder()
         .addAll(methods);
-    if (methods.contains("GET")) {
-      builder.add("HEAD");
-    }
     return builder.build();
   }
 
